@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Ganesha — Cosmic Divine Experience</title>
+<style>
+:root{
+  --gold:#ffd66b;--cyan:#52e8ff;--violet:#a66cff;--pink:#ff5bbd;
+}
+*{box-sizing:border-box}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#020108;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+#canvas-container{position:fixed;inset:0}
+canvas{display:block}
+#hud{
+  position:fixed;inset:0;z-index:5;pointer-events:none;
+  background:
+    radial-gradient(circle at 50% 45%,transparent 25%,rgba(2,1,8,.22) 58%,rgba(0,0,4,.82) 100%),
+    linear-gradient(180deg,rgba(0,0,0,.28),transparent 35%,rgba(0,0,0,.4));
+}
+#title{
+  position:absolute;top:7vh;width:100%;text-align:center;
+  color:#fff;letter-spacing:.55em;text-transform:uppercase;
+  font-size:clamp(10px,1vw,14px);opacity:.75;
+  text-shadow:0 0 20px var(--cyan),0 0 40px rgba(255,210,100,.3)
+}
+#mantra{
+  position:absolute;left:50%;bottom:8vh;transform:translateX(-50%);
+  color:rgba(255,230,170,.82);font-size:clamp(10px,1vw,13px);
+  letter-spacing:.38em;text-align:center;white-space:nowrap;
+  text-shadow:0 0 18px #ff9f28;opacity:0;transition:opacity 2s ease;
+}
+#loading{
+  position:absolute;inset:0;display:grid;place-items:center;
+  color:#ffe7a2;font-size:clamp(20px,3vw,42px);font-weight:200;
+  letter-spacing:.5em;text-indent:.5em;text-transform:uppercase;
+  transition:opacity 1.6s,filter 1.6s;
+}
+#loading.hide{opacity:0;filter:blur(18px)}
+#hint{
+  position:absolute;bottom:3vh;width:100%;text-align:center;
+  color:rgba(255,255,255,.38);font-size:10px;letter-spacing:.3em;
+}
+#controls{
+  position:absolute;right:22px;top:22px;display:flex;gap:8px;
+  pointer-events:auto;opacity:.75;
+}
+button{
+  border:1px solid rgba(255,220,130,.22);background:rgba(8,5,20,.45);
+  color:#ffe8a5;border-radius:999px;padding:9px 13px;font-size:10px;
+  letter-spacing:.12em;cursor:pointer;backdrop-filter:blur(12px);
+}
+button:hover{background:rgba(255,190,70,.12);border-color:rgba(255,220,130,.55)}
+#stats{
+  position:absolute;left:22px;top:22px;color:rgba(255,255,255,.4);
+  font:10px/1.8 ui-monospace,monospace;letter-spacing:.08em
+}
+@media(max-width:600px){#title{top:4vh}#mantra{bottom:7vh;letter-spacing:.18em}#controls{right:10px;top:10px}}
+</style>
+</head>
+<body>
+<div id="canvas-container"></div>
+<div id="hud">
+  <div id="title">ॐ • Cosmic Ganesha • ॐ</div>
+  <div id="stats">COSMIC FIELD<br><span id="fps">60</span> FPS</div>
+  <div id="controls">
+    <button id="auto">AUTO ROTATE</button>
+    <button id="reset">RESET VIEW</button>
+  </div>
+  <div id="loading">Awakening</div>
+  <div id="mantra">ॐ गं गणपतये नमः</div>
+  <div id="hint">DRAG • ZOOM • MOVE POINTER TO BEND THE AURA</div>
+</div>
+
+<script type="importmap">
+{
+  "imports":{
+    "three":"https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {EffectComposer} from 'three/addons/postprocessing/EffectComposer.js';
+import {RenderPass} from 'three/addons/postprocessing/RenderPass.js';
+import {UnrealBloomPass} from 'three/addons/postprocessing/UnrealBloomPass.js';
+
+const $=id=>document.getElementById(id);
+const container=$('canvas-container');
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x020108);
+scene.fog=new THREE.FogExp2(0x03010b,.004);
+
+const camera=new THREE.PerspectiveCamera(48,innerWidth/innerHeight,.1,500);
+camera.position.set(0,2.8,27);
+
+const renderer=new THREE.WebGLRenderer({
+  antialias:true,powerPreference:'high-performance',
+  logarithmicDepthBuffer:true
+});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth,innerHeight);
+renderer.outputColorSpace=THREE.SRGBColorSpace;
+renderer.toneMapping=THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure=0.92;
+container.appendChild(renderer.domElement);
+
+const controls=new OrbitControls(camera,renderer.domElement);
+controls.enableDamping=true;controls.dampingFactor=.035;
+controls.minDistance=9;controls.maxDistance=38;
+controls.target.set(0,0.6,0);
+controls.autoRotate=true;controls.autoRotateSpeed=.35;
+
+const composer=new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+const bloom=new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight),0.55,0.42,.42);
+composer.addPass(bloom);
+
+
+/* ---------- palette ---------- */
+const C=[
+ new THREE.Color('#39eaff'),new THREE.Color('#7b5cff'),
+ new THREE.Color('#ef4db9'),new THREE.Color('#ff7b27'),
+ new THREE.Color('#ffd45c'),new THREE.Color('#fff5ce')
+];
+function gradient(t){
+ t=THREE.MathUtils.clamp(t,0,1);
+ const x=t*(C.length-1),i=Math.min(C.length-2,Math.floor(x));
+ return C[i].clone().lerp(C[i+1],x-i);
+}
+
+/* ---------- literal divine palette (skin / cloth / metal / gem tones) ---------- */
+const SKIN_LIGHT=new THREE.Color('#ffd48f');
+const SKIN_MID  =new THREE.Color('#ff9d3d');
+const SKIN_DEEP =new THREE.Color('#a8480f');
+const CLOTH_RED =new THREE.Color('#ec2c52');
+const CLOTH_DEEP=new THREE.Color('#4c0619');
+const GOLD_HI   =new THREE.Color('#fff4c4');
+const GOLD_MID  =new THREE.Color('#ffad24');
+const GEM_BLUE  =new THREE.Color('#28e4ff');
+const GEM_VIOLET=new THREE.Color('#9152ff');
+const GEM_PINK  =new THREE.Color('#ff3f9e');
+const IVORY     =new THREE.Color('#fffaf0');
+const DARK      =new THREE.Color('#120906');
+const REDMARK   =new THREE.Color('#ff163f');
+function mixSkin(t){return SKIN_DEEP.clone().lerp(SKIN_LIGHT,THREE.MathUtils.clamp(t,0,1));}
+function mixCloth(t){return CLOTH_DEEP.clone().lerp(CLOTH_RED,THREE.MathUtils.clamp(t,0,1));}
+function mixGold(t){return GOLD_MID.clone().lerp(GOLD_HI,THREE.MathUtils.clamp(t,0,1));}
+function mixGem(t){
+ t=((t%1)+1)%1;
+ if(t<.5)return GEM_BLUE.clone().lerp(GEM_VIOLET,t*2);
+ return GEM_VIOLET.clone().lerp(GEM_PINK,(t-.5)*2);
+}
+/* cinematic two-tone lighting: warm key light (upper-front-right) + cool violet fill
+   on the shadow side, plus a separate punchy specular pass for metal/gem surfaces. */
+const LIGHT_DIR=new THREE.Vector3(.55,.75,.65).normalize();
+const FILL_COLOR=new THREE.Color('#6a5cff');
+const AMBIENT=.36;
+function shade(color,L){
+ const diffuse=THREE.MathUtils.clamp(AMBIENT+(1-AMBIENT)*((L+1)*.5),0,1.3);
+ const shadowAmt=THREE.MathUtils.clamp((1-((L+1)*.5))*.55,0,.4);
+ return color.clone().multiplyScalar(diffuse).lerp(FILL_COLOR,shadowAmt*.22);
+}
+function shadeMetal(color,L){
+ const base=shade(color,L);
+ const spec=Math.pow(Math.max(L,0),22);
+ return base.lerp(new THREE.Color(1,1,1),spec*.7).multiplyScalar(1+spec*.5);
+}
+
+/* ---------- point-cloud builder ---------- */
+const targets=[],colors=[];
+function point(x,y,z,t=0.7,size=1,override=null){
+ targets.push(new THREE.Vector3(x,y,z));
+ const c=override?override:gradient(t);
+ colors.push(c.r,c.g,c.b,size);
+}
+function sphere(ox,oy,oz,r,sy,n,t,h=2,colorFn=null){
+ const phi=Math.PI*(3-Math.sqrt(5));
+ for(let i=0;i<n;i++){
+   const y=1-2*i/(n-1), rr=Math.sqrt(Math.max(0,1-y*y)), a=phi*i;
+   const ripple=1+.045*Math.sin(a*h)*Math.cos(y*17);
+   const tt=t+.045*y;
+   const nx=rr*Math.cos(a),ny=y,nz=rr*Math.sin(a);
+   const L=nx*LIGHT_DIR.x+ny*LIGHT_DIR.y+nz*LIGHT_DIR.z;
+   point(ox+r*ripple*rr*Math.cos(a),oy+r*sy*y*ripple,
+         oz+r*ripple*rr*Math.sin(a),tt,1,colorFn?colorFn(tt,L):null);
+ }
+}
+function tube(points, radius, t0,t1, samples=850, colorFn=null){
+ for(let i=0;i<=samples;i++){
+   const u=i/samples, k=u*(points.length-1), j=Math.min(points.length-2,Math.floor(k));
+   const q=k-j,a=points[j],b=points[j+1];
+   const c=a.clone().lerp(b,q);
+   const tangent=b.clone().sub(a).normalize();
+   const up=Math.abs(tangent.y)<.9?new THREE.Vector3(0,1,0):new THREE.Vector3(1,0,0);
+   const n1=new THREE.Vector3().crossVectors(tangent,up).normalize();
+   const n2=new THREE.Vector3().crossVectors(tangent,n1).normalize();
+   const ang=u*Math.PI*34, r=radius*(1-.38*u);
+   const radialDir=n1.clone().multiplyScalar(Math.cos(ang)).addScaledVector(n2,Math.sin(ang));
+   c.addScaledVector(radialDir,r);
+   const tt=THREE.MathUtils.lerp(t0,t1,u);
+   const L=radialDir.dot(LIGHT_DIR);
+   point(c.x,c.y,c.z,tt,1,colorFn?colorFn(tt,L):null);
+ }
+}
+function ear(side){
+ const n=2800,phi=Math.PI*(3-Math.sqrt(5));
+ for(let i=0;i<n;i++){
+   const u=Math.sqrt(i/n),a=i*phi,r=4.8*u;
+   let x=r*Math.cos(a),y=r*Math.sin(a)*1.18;
+   if(side*x<-.35)continue;
+   const z=-.15-.28*Math.abs(x)+.22*Math.sin(r*1.8);
+   x*=.88;
+   const rim=u>.86;
+   const c=rim?mixGold(.6+.4*Math.sin(r*1.8)):mixSkin(.35+.5*u);
+   point(side*2.55+x,6.45+y,z,.66,1,c);
+ }
+}
+function lotus(){
+ for(let l=1;l<=7;l++){
+   const base=l*1.05,n=l*430,petals=10+l;
+   for(let i=0;i<n;i++){
+     const a=i/n*Math.PI*2;
+     const pet=Math.pow(Math.abs(Math.sin(a*petals/2)),1.65);
+     const r=base+1.35*pet;
+     const edge=pet>.82;
+     const c=edge?mixGold(.5+.5*(l/7)):mixCloth(.25+.55*(l/7)+.15*pet);
+     point(r*Math.cos(a),-6+.42*pet-.12*l,r*Math.sin(a),0,1,c);
+   }
+ }
+}
+function halo(){
+ for(let ring=0;ring<18;ring++){
+   const r=5.4+ring*.31,n=130+ring*28;
+   for(let i=0;i<n;i++){
+     const a=i/n*Math.PI*2;
+     const burst=.18*Math.sin(a*(18+ring%4*6)+ring);
+     const c=mixGem((i/n)+ring*.05);
+     point((r+burst)*Math.cos(a),8.0+(r+burst)*Math.sin(a),-2.1,0,1,c);
+   }
+ }
+ /* radial rays */
+ for(let k=0;k<84;k++){
+   const a=k/84*Math.PI*2, len=6+1.8*Math.sin(k*2.4)**2;
+   const rayC=mixGold(.4+.5*Math.sin(k*.7));
+   for(let j=0;j<20;j++){
+     const u=j/20;
+     point((5.3+len*u)*Math.cos(a),8+(5.3+len*u)*Math.sin(a),-2.0,0,1,rayC);
+   }
+ }
+}
+function crown(){
+ for(let row=0;row<4;row++){
+   const n=900, h=row*1.2, base=2.35-row*.5;
+   const rowC=mixGold(.35+.2*row);
+   for(let i=0;i<n;i++){
+     const a=i/n*Math.PI*2*7;
+     const r=base*(1-i/n*.52)+.13*Math.sin(a*5);
+     point(r*Math.cos(a),9.1+h,r*Math.sin(a),0,1,rowC);
+   }
+ }
+ /* crown jewels — alternating gem colors */
+ for(let i=0;i<17;i++){
+   const a=i/17*Math.PI*2;
+   sphere(2.0*Math.cos(a),11.9,2.0*Math.sin(a),.18,1,90,0,3,(t,L)=>shadeMetal(mixGem(i/17),L));
+ }
+ /* crown peak jewel */
+ sphere(0,12.6,0,.32,1,140,0,3,(t,L)=>shadeMetal(GEM_VIOLET,L));
+}
+function trunk(){
+ const p=[
+  new THREE.Vector3(0,6.5,2.7),new THREE.Vector3(.1,4.9,3.4),
+  new THREE.Vector3(.55,3.2,3.55),new THREE.Vector3(-.2,1.8,3.6),
+  new THREE.Vector3(-1.35,.9,3.35),new THREE.Vector3(-2.15,1.45,3.05),
+  new THREE.Vector3(-2.55,2.25,3.0)
+ ];
+ tube(p,1.32,0,1,3600,(t,L)=>shade(mixSkin(.3+.5*t),L));
+ return p[p.length-1];
+}
+function arm(side,upper=false){
+ const y=upper?4.8:3.0, z=upper?-1.0:.15;
+ const p=[
+  new THREE.Vector3(side*2.4,y,z),
+  new THREE.Vector3(side*4.0,y+1.0,z+.2),
+  new THREE.Vector3(side*5.5,y+(upper?2.0:-.5),z+.15),
+  new THREE.Vector3(side*6.0,y+(upper?3.1:-1.3),z+.5)
+ ];
+ tube(p,.72,0,1,800,(t,L)=>shade(mixSkin(.35+.4*t),L));
+ return p[p.length-1];
+}
+/* held sacred items: modak (sweet), lotus bloom, ankusha (goad), open blessing palm */
+function modak(c){
+ sphere(c.x,c.y,c.z,.62,.95,650,0,4,(t,L)=>shadeMetal(mixGold(.6+.3*Math.random()),L));
+ sphere(c.x,c.y+.5,c.z,.16,.7,120,0,3,(t,L)=>shadeMetal(GOLD_HI,L));
+}
+function heldLotus(c,side){
+ for(let l=1;l<=4;l++){
+   const base=.28*l,n=l*140,petals=8;
+   for(let i=0;i<n;i++){
+     const a=i/n*Math.PI*2;
+     const pet=Math.pow(Math.abs(Math.sin(a*petals/2)),1.5);
+     const r=base+.42*pet;
+     point(c.x+r*Math.cos(a)*.7,c.y+.1*l+.12*pet,c.z+r*Math.sin(a),0,1,mixGem(.0+.06*l));
+   }
+ }
+}
+function ankusha(c,side){
+ const p=[c.clone(),c.clone().add(new THREE.Vector3(side*.3,1.6,.1)),c.clone().add(new THREE.Vector3(side*.55,2.5,.15))];
+ tube(p,.09,0,1,260,(t,L)=>shadeMetal(mixGold(.7),L));
+ sphere(p[2].x,p[2].y+.15,p[2].z,.18,1,90,0,2,(t,L)=>shadeMetal(REDMARK,L));
+}
+function palm(c){
+ sphere(c.x,c.y,c.z,.42,.5,300,0,3,(t,L)=>shade(mixSkin(.55+.2*t),L));
+}
+
+/* ---------- Ganesha ---------- */
+lotus();
+/* crossed, seated legs */
+sphere(-2.0,-3.55,.9,2.55,.62,1600,0,1,(t,L)=>shade(mixCloth(.3+.4*t),L));
+sphere( 2.0,-3.55,.9,2.55,.62,1600,0,1,(t,L)=>shade(mixCloth(.3+.4*t),L));
+/* feet accents */
+sphere(-3.9,-3.9,2.4,.55,.6,260,0,2,(t,L)=>shade(mixSkin(.5),L));
+sphere( 3.9,-3.9,2.4,.55,.6,260,0,2,(t,L)=>shade(mixSkin(.5),L));
+/* belly */
+sphere(0,-1.0,1.25,4.15,.95,4700,0,5,(t,L)=>shade(mixSkin(.28+.55*t),L));
+/* sacred thread across chest */
+(function thread(){
+ const p=[new THREE.Vector3(-1.7,4.0,2.2),new THREE.Vector3(.3,1.0,2.5),new THREE.Vector3(1.9,-2.2,2.0)];
+ tube(p,.14,0,1,900,(t,L)=>shade(IVORY,L));
+})();
+/* chest/upper torso */
+sphere(0,2.9,.55,3.15,.84,3300,0,4,(t,L)=>shade(mixSkin(.35+.5*t),L));
+const armEndLR=arm(1,false), armEndUR=arm(1,true);
+const armEndLL=arm(-1,false), armEndUL=arm(-1,true);
+modak(armEndLR);
+heldLotus(armEndUL,-1);
+ankusha(armEndUR,1);
+palm(armEndLL);
+sphere(0,6.55,1.05,2.48,1.04,3000,0,2,(t,L)=>shade(mixSkin(.35+.45*t),L));
+ear(-1);ear(1);
+halo();crown();trunk();
+
+/* tusks — one whole, one broken (traditional Ganesha iconography) */
+function tusk(side,broken){
+ const len=broken?.55:1.35;
+ const p=[
+  new THREE.Vector3(side*.85,5.55,3.55),
+  new THREE.Vector3(side*(1.05+len*.5),5.05-len*.35,3.7+len*.25),
+  new THREE.Vector3(side*(1.15+len*.85),4.55-len*.7,3.55+len*.15)
+ ];
+ tube(p,broken?.14:.16,0,1,broken?220:420,(t,L)=>shade(IVORY,L));
+}
+tusk(1,false); tusk(-1,true);
+
+/* mouth — gentle curved smile beneath the trunk base */
+(function mouth(){
+ const n=260;
+ for(let i=0;i<n;i++){
+   const u=i/(n-1), x=(u-.5)*1.9;
+   const y=-.12*Math.sin(Math.PI*u);
+   point(x,4.55+y,3.62,0,1,mixCloth(.55));
+ }
+})();
+
+/* ---------- solid (non-additive) channel for crisp dark facial detail ---------- */
+/* Under additive blending, near-black colors add almost nothing and get washed
+   out by surrounding glow. Pupils/eyebrows need to render as true solid dark
+   shapes, so they get their own static, normally-blended points layer. */
+const solidPos=[],solidCol=[],solidSizeArr=[];
+function solidPoint(x,y,z,color,size=1){
+ solidPos.push(x,y,z);
+ solidCol.push(color.r,color.g,color.b);
+ solidSizeArr.push(size);
+}
+function solidSphere(ox,oy,oz,r,sy,n,h,color){
+ const phi=Math.PI*(3-Math.sqrt(5));
+ for(let i=0;i<n;i++){
+   const y=1-2*i/(n-1), rr=Math.sqrt(Math.max(0,1-y*y)), a=phi*i;
+   const ripple=1+.045*Math.sin(a*h)*Math.cos(y*17);
+   solidPoint(ox+r*ripple*rr*Math.cos(a),oy+r*sy*y*ripple,oz+r*ripple*rr*Math.sin(a),color,1);
+ }
+}
+
+/* eyebrows — thin dark curved strands above each eye */
+function eyebrow(side){
+ const n=260;
+ for(let i=0;i<n;i++){
+   const u=i/(n-1), x=(u-.5)*1.1;
+   const y=.16*Math.sin(Math.PI*u)+.06;
+   solidPoint(side*(.76+x),7.6+y,3.5+.06*Math.cos(Math.PI*u),DARK,1.1);
+ }
+}
+eyebrow(-1); eyebrow(1);
+
+/* Clearly readable eyes + tilak: crisp ivory sclera, dark iris (solid layer), bright highlight. */
+function eye(side){
+  const n=420;
+  for(let i=0;i<n;i++){
+    const u=i/(n-1), x=(u-.5)*1.18;
+    const y=.16*Math.sin(Math.PI*u);
+    const z=3.34 + .12*Math.cos(Math.PI*u);
+    point(side*(.76+x),7.12+y,z,0,.8,IVORY);
+  }
+  solidSphere(side*.76,7.13,3.5,.24,.6,360,2,DARK);
+  solidSphere(side*.81,7.18,3.62,.075,.6,70,2,IVORY);
+}
+eye(-1); eye(1);
+/* tilak — vermilion forehead mark */
+sphere(0,7.72,3.43,.16,.85,220,0,2,(t,L)=>shade(REDMARK,L));
+
+/* ---------- cosmic particle field ---------- */
+const starCount=9000;
+const starPos=new Float32Array(starCount*3);
+const starCol=new Float32Array(starCount*3);
+for(let i=0;i<starCount;i++){
+ const r=55+Math.random()*130,a=Math.random()*Math.PI*2,
+       b=Math.acos(2*Math.random()-1),j=i*3;
+ starPos[j]=r*Math.sin(b)*Math.cos(a);
+ starPos[j+1]=r*Math.cos(b);
+ starPos[j+2]=r*Math.sin(b)*Math.sin(a);
+ const c=gradient(.45+Math.random()*.55);
+ starCol[j]=c.r;starCol[j+1]=c.g;starCol[j+2]=c.b;
+}
+const starGeo=new THREE.BufferGeometry();
+starGeo.setAttribute('position',new THREE.BufferAttribute(starPos,3));
+starGeo.setAttribute('color',new THREE.BufferAttribute(starCol,3));
+const starMat=new THREE.PointsMaterial({
+ size:.055,vertexColors:true,transparent:true,opacity:.72,
+ blending:THREE.AdditiveBlending,depthWrite:false
+});
+const stars=new THREE.Points(starGeo,starMat);scene.add(stars);
+
+/* ---------- target cloud ---------- */
+const total=targets.length;
+const pos=new Float32Array(total*3),start=new Float32Array(total*3);
+const col=new Float32Array(total*3);
+for(let i=0;i<total;i++){
+ const a=Math.random()*Math.PI*2,b=Math.acos(2*Math.random()-1),
+       r=42+Math.random()*90,j=i*3;
+ start[j]=r*Math.sin(b)*Math.cos(a);
+ start[j+1]=r*Math.cos(b)-18;
+ start[j+2]=r*Math.sin(b)*Math.sin(a);
+ pos[j]=start[j];pos[j+1]=start[j+1];pos[j+2]=start[j+2];
+ col[j]=colors[i*4];col[j+1]=colors[i*4+1];col[j+2]=colors[i*4+2];
+}
+const geo=new THREE.BufferGeometry();
+geo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+geo.setAttribute('color',new THREE.BufferAttribute(col,3));
+const spriteCanvas=document.createElement('canvas');spriteCanvas.width=spriteCanvas.height=64;
+const ctx=spriteCanvas.getContext('2d'),g=ctx.createRadialGradient(32,32,0,32,32,32);
+g.addColorStop(0,'rgba(255,255,255,1)');
+g.addColorStop(.16,'rgba(255,245,190,.95)');
+g.addColorStop(.42,'rgba(255,160,50,.28)');
+g.addColorStop(1,'rgba(0,0,0,0)');
+ctx.fillStyle=g;ctx.fillRect(0,0,64,64);
+const tex=new THREE.CanvasTexture(spriteCanvas);
+const mat=new THREE.PointsMaterial({
+ size:.24,vertexColors:true,map:tex,transparent:true,opacity:.98,
+ blending:THREE.AdditiveBlending,depthWrite:false
+});
+const particles=new THREE.Points(geo,mat);
+/* Crisp core layer: keeps the silhouette readable even with bloom. */
+const coreMat=new THREE.PointsMaterial({
+ size:.105, vertexColors:true, transparent:true, opacity:.92,
+ blending:THREE.AdditiveBlending, depthWrite:false
+});
+const coreParticles=new THREE.Points(geo,coreMat);
+coreParticles.renderOrder=3;
+particles.renderOrder=2;
+
+/* faint flowing ribbon */
+const lineMat=new THREE.LineBasicMaterial({
+ vertexColors:true,transparent:true,opacity:.13,
+ blending:THREE.AdditiveBlending,depthWrite:false
+});
+const line=new THREE.Line(geo,lineMat);
+line.renderOrder=1;
+geo.setDrawRange(0,0);
+
+const group=new THREE.Group();
+group.add(particles,coreParticles,line);group.position.y=-2.8;scene.add(group);
+
+/* solid, normally-blended layer for crisp dark facial detail (pupils/eyebrows) */
+const solidGeo=new THREE.BufferGeometry();
+solidGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(solidPos),3));
+solidGeo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(solidCol),3));
+const solidMat=new THREE.PointsMaterial({
+ size:.14,vertexColors:true,transparent:true,opacity:0,
+ blending:THREE.NormalBlending,depthWrite:false,sizeAttenuation:true
+});
+const solidPoints=new THREE.Points(solidGeo,solidMat);
+solidPoints.renderOrder=4;
+group.add(solidPoints);
+
+/* ---------- twinkling sparkle overlay (crown jewels, halo, gold rims) ---------- */
+const sparklePos=[],sparkleBase=[],sparklePhase=[],sparkleSpeed=[];
+function addSparkle(x,y,z,color){
+ sparklePos.push(x,y,z);
+ sparkleBase.push(color.r,color.g,color.b);
+ sparklePhase.push(Math.random()*Math.PI*2);
+ sparkleSpeed.push(1.6+Math.random()*2.2);
+}
+for(let i=0;i<17;i++){
+ const a=i/17*Math.PI*2;
+ addSparkle(2.0*Math.cos(a),11.9,2.0*Math.sin(a),mixGem(i/17));
+}
+addSparkle(0,12.6,0,GEM_VIOLET);
+for(let k=0;k<16;k++){
+ const a=k/16*Math.PI*2,r=7.2;
+ addSparkle(r*Math.cos(a),8.0+r*Math.sin(a),-2.1,mixGem(k/16+.3));
+}
+addSparkle(-4.2,6.9,-.1,GOLD_HI); addSparkle(4.2,6.9,-.1,GOLD_HI);
+addSparkle(-1.9,4.6,3.2,GOLD_HI); addSparkle(1.9,4.6,3.2,GOLD_HI);
+if(typeof armEndLR!=='undefined')addSparkle(armEndLR.x,armEndLR.y+.55,armEndLR.z,GOLD_HI);
+if(typeof armEndUR!=='undefined')addSparkle(armEndUR.x+1.15,armEndUR.y+2.9,armEndUR.z+.2,REDMARK);
+
+const sparkleGeo=new THREE.BufferGeometry();
+sparkleGeo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(sparklePos),3));
+sparkleGeo.setAttribute('color',new THREE.BufferAttribute(new Float32Array(sparkleBase),3));
+const sparkleMat=new THREE.PointsMaterial({
+ size:.42,vertexColors:true,transparent:true,opacity:1,
+ blending:THREE.AdditiveBlending,depthWrite:false,sizeAttenuation:true
+});
+const sparklePoints=new THREE.Points(sparkleGeo,sparkleMat);
+sparklePoints.renderOrder=5;
+group.add(sparklePoints);
+const sparkleColArr=sparkleGeo.attributes.color.array;
+const sparkleCount=sparklePhase.length;
+
+/* ---------- deep cosmic backdrop nebula ---------- */
+const nebulaCanvas=document.createElement('canvas');nebulaCanvas.width=nebulaCanvas.height=512;
+const nctx=nebulaCanvas.getContext('2d');
+const ng=nctx.createRadialGradient(256,256,0,256,256,256);
+ng.addColorStop(0,'rgba(120,70,200,.55)');
+ng.addColorStop(.35,'rgba(70,40,140,.32)');
+ng.addColorStop(.65,'rgba(30,15,60,.16)');
+ng.addColorStop(1,'rgba(2,1,8,0)');
+nctx.fillStyle=ng;nctx.fillRect(0,0,512,512);
+const nebulaTex=new THREE.CanvasTexture(nebulaCanvas);
+const nebulaMat=new THREE.SpriteMaterial({map:nebulaTex,transparent:true,depthWrite:false,blending:THREE.AdditiveBlending});
+const nebula1=new THREE.Sprite(nebulaMat);
+nebula1.scale.set(150,150,1);nebula1.position.set(-40,20,-120);scene.add(nebula1);
+const nebula2=new THREE.Sprite(nebulaMat.clone());
+nebula2.material.color=new THREE.Color('#ff7bd6');
+nebula2.scale.set(120,120,1);nebula2.position.set(50,-10,-140);scene.add(nebula2);
+const nebula3=new THREE.Sprite(nebulaMat.clone());
+nebula3.material.color=new THREE.Color('#ffcf6b');
+nebula3.scale.set(100,100,1);nebula3.position.set(0,60,-160);scene.add(nebula3);
+
+/* ---------- energy rings ---------- */
+const rings=[];
+for(let q=0;q<5;q++){
+ const rg=new THREE.TorusGeometry(7.2+q*1.25,.018+q*.006,8,220);
+ const rm=new THREE.MeshBasicMaterial({
+   color:gradient(.76+q*.045),transparent:true,opacity:.18-q*.02,
+   blending:THREE.AdditiveBlending,depthWrite:false
+ });
+ const mesh=new THREE.Mesh(rg,rm);
+ mesh.position.set(0,2.5,-1.5);
+ mesh.rotation.x=Math.PI/2;
+ mesh.rotation.z=q*.37;
+ scene.add(mesh);rings.push(mesh);
+}
+
+/* ---------- animation ---------- */
+let time=0,progress=0,draw=0,paused=false;
+let pointerX=0,pointerY=0;
+addEventListener('pointermove',e=>{
+ pointerX=(e.clientX/innerWidth-.5)*2;
+ pointerY=(e.clientY/innerHeight-.5)*2;
+});
+$('auto').onclick=()=>{
+ controls.autoRotate=!controls.autoRotate;
+ $('auto').textContent=controls.autoRotate?'AUTO ROTATE':'AUTO ROTATE OFF';
+};
+$('reset').onclick=()=>{
+ camera.position.set(0,2.8,27);
+ controls.target.set(0,0.6,0);controls.update();
+};
+
+const clock=new THREE.Clock();
+let frames=0,lastFps=performance.now();
+function ease(x){return 1-Math.pow(1-x,4)}
+function animate(){
+ requestAnimationFrame(animate);
+ const dt=Math.min(clock.getDelta(),.04);time+=dt;
+ if(paused)return;
+
+ if(time>1.0)progress=Math.min(1,progress+dt*.105);
+ const ep=ease(progress);
+ draw=Math.min(total,draw+total*dt*.018);
+ geo.setDrawRange(0,Math.floor(draw));
+
+ const pa=geo.attributes.position.array;
+ const wave=time*.65;
+ const influenceX=pointerX*.5,influenceY=pointerY*.35;
+ for(let i=0;i<total;i++){
+   const j=i*3,targ=targets[i];
+   const sx=start[j],sy=start[j+1],sz=start[j+2];
+   const swirl=wave+i*.00065;
+   const x=sx*Math.cos(swirl)-sz*Math.sin(swirl);
+   const z=sx*Math.sin(swirl)+sz*Math.cos(swirl);
+   const breathe=(Math.sin(time*1.7+i*.017)*.045)*(ep);
+   const targetX=targ.x+influenceX*(1-Math.min(1,Math.abs(targ.y)/14));
+   const targetY=targ.y+influenceY*.6;
+   pa[j]=THREE.MathUtils.lerp(x,targetX+breathe,ep);
+   pa[j+1]=THREE.MathUtils.lerp(sy,targetY+breathe,ep);
+   pa[j+2]=THREE.MathUtils.lerp(z,targ.z+breathe*.7,ep);
+ }
+ geo.attributes.position.needsUpdate=true;
+ solidMat.opacity=ep;
+
+ for(let s=0;s<sparkleCount;s++){
+   const tw=.35+.65*Math.max(0,Math.sin(time*sparkleSpeed[s]+sparklePhase[s]));
+   const j3=s*3;
+   sparkleColArr[j3]=sparkleBase[j3]*tw;
+   sparkleColArr[j3+1]=sparkleBase[j3+1]*tw;
+   sparkleColArr[j3+2]=sparkleBase[j3+2]*tw;
+ }
+ sparkleGeo.attributes.color.needsUpdate=true;
+ sparkleMat.opacity=ep;
+
+ group.rotation.y=Math.sin(time*.17)*.11+time*.018;
+ group.rotation.x=pointerY*.025;
+ stars.rotation.y=time*.008;stars.rotation.x=Math.sin(time*.1)*.025;
+ nebula1.rotation.z=time*.01; nebula2.rotation.z=-time*.007; nebula3.rotation.z=time*.005;
+
+ rings.forEach((r,i)=>{
+   r.rotation.z+=dt*(.03+i*.008)*(i%2?-1:1);
+   r.scale.setScalar(1+.025*Math.sin(time*1.2+i));
+   r.position.x=pointerX*.3;
+ });
+
+ bloom.strength=0.68+.08*Math.sin(time*1.4);
+ controls.update();composer.render();
+
+ frames++;
+ if(performance.now()-lastFps>1000){
+   $('fps').textContent=frames;frames=0;lastFps=performance.now();
+ }
+}
+setTimeout(()=>{$('loading').classList.add('hide');$('mantra').style.opacity='1'},3200);
+addEventListener('resize',()=>{
+ camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();
+ renderer.setSize(innerWidth,innerHeight);composer.setSize(innerWidth,innerHeight);
+});
+animate();
+</script>
+</body>
+</html>
