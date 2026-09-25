@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Heart Anatomy Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,500;8..60,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div id="app">
+
+    <header id="top-bar">
+      <div id="brand">
+        <span id="brand-mark" aria-hidden="true"></span>
+        <div id="brand-text">
+          <h1>Heart Anatomy Explorer</h1>
+          <p>An interactive guide to the chambers, vessels, and valves of the human heart</p>
+        </div>
+      </div>
+      <div id="orientation-note">Viewed facing the heart, as in a patient &mdash; anatomical right is on your left</div>
+    </header>
+
+    <main id="stage">
+
+      <div id="viewport" aria-label="3D heart model viewport"></div>
+      <svg id="leader-lines" aria-hidden="true"></svg>
+
+      <div id="loading-overlay" role="status">
+        <div id="loading-spinner"></div>
+        <p>Loading anatomical model&hellip;</p>
+        <p class="loading-note">Real segmented cardiac anatomy, ~11&nbsp;MB</p>
+      </div>
+
+      <div id="hint" role="status">Drag to rotate &middot; scroll to zoom &middot; click a structure to learn more</div>
+
+      <div id="toolbar" role="toolbar" aria-label="Model controls">
+        <button id="btn-reset" class="tool-btn" type="button">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 5V2L7 6l5 4V7c3.31 0 6 2.69 6 6a6 6 0 0 1-11.32 2.5l-1.74 1A8 8 0 0 0 20 13c0-4.42-3.58-8-8-8z" fill="currentColor"/></svg>
+          <span>Reset view</span>
+        </button>
+        <button id="btn-labels" class="tool-btn is-active" type="button" aria-pressed="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z" fill="currentColor"/></svg>
+          <span>Labels</span>
+        </button>
+        <button id="btn-flow" class="tool-btn is-active" type="button" aria-pressed="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M13 2 3 14h7l-1 8 10-12h-7l1-8z" fill="currentColor"/></svg>
+          <span>Blood flow</span>
+        </button>
+        <button id="btn-cutaway" class="tool-btn" type="button" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M12 2C7 2 2.7 5.1 1 9.5 2.7 13.9 7 17 12 17s9.3-3.1 11-7.5C21.3 5.1 17 2 12 2zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10z" fill="currentColor"/></svg>
+          <span>Cutaway</span>
+        </button>
+        <button id="btn-xray" class="tool-btn" type="button" aria-pressed="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 4h16v16H4V4zm2 2v12h12V6H6zm2 2h8v2H8V8zm0 4h8v2H8v-2z" fill="currentColor"/></svg>
+          <span>X-Ray</span>
+        </button>
+      </div>
+
+      <div id="legend">
+        <p class="legend-title">Blood oxygenation</p>
+        <div class="legend-row"><span class="swatch swatch-oxy"></span> Oxygenated</div>
+        <div class="legend-row"><span class="swatch swatch-deoxy"></span> Deoxygenated</div>
+        <div class="legend-row"><span class="swatch swatch-valve"></span> Valve / fibrous tissue</div>
+        <div class="legend-row"><span class="swatch swatch-conduction"></span> Conduction system</div>
+        <p class="legend-credit">Anatomy: BodyParts3D, © DBCLS, CC BY-SA 2.1 Japan</p>
+      </div>
+
+    </main>
+
+    <aside id="info-panel" aria-live="polite">
+      <div id="info-default">
+        <p class="info-kicker">Get started</p>
+        <h2>Select a structure</h2>
+        <p>Click any chamber, vessel, valve, or the septum on the model to see its name, location, and function here.</p>
+        <hr />
+        <p class="info-kicker">Structures to explore</p>
+        <ul id="structure-list"></ul>
+      </div>
+      <div id="info-detail" hidden>
+        <p class="info-kicker" id="detail-category">&nbsp;</p>
+        <h2 id="detail-name"></h2>
+        <div class="info-block">
+          <h3>Location</h3>
+          <p id="detail-location"></p>
+        </div>
+        <div class="info-block">
+          <h3>Function</h3>
+          <p id="detail-function"></p>
+        </div>
+        <div class="info-block">
+          <h3>Connects to</h3>
+          <p id="detail-connections"></p>
+        </div>
+        <button id="btn-deselect" type="button">Clear selection</button>
+      </div>
+    </aside>
+
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
