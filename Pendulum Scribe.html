@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pendulum Scribe</title>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+:root{--bg1:#0d3038;--bg2:#030d12;--ink:#e2f8f4;--mute:#8db8b3;--line:rgba(160,235,225,.28);--accent:#7ff0d8;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{background:radial-gradient(ellipse at 50% 45%,var(--bg1),var(--bg2) 72%);color:var(--ink);font:400 14px/1.4 system-ui,-apple-system,'Segoe UI',sans-serif;overflow:hidden}
+canvas{position:fixed;inset:0;touch-action:none;cursor:crosshair}
+header{position:fixed;left:0;top:0;padding:calc(18px + env(safe-area-inset-top,0px)) 22px 0;pointer-events:none;max-width:80vw}
+h1{font:italic 400 clamp(1.8rem,5vw,2.8rem)/1 'Instrument Serif',Georgia,serif;margin:0 0 6px;letter-spacing:.01em}
+header p{margin:0;color:var(--mute);max-width:34ch}
+footer{position:fixed;left:0;right:0;bottom:0;padding:0 16px calc(46px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;align-items:center;gap:10px;pointer-events:none}
+#cap{color:var(--mute);font-variant-numeric:tabular-nums;text-align:center}
+.btns{display:flex;gap:10px;pointer-events:auto}
+button{font:inherit;color:var(--ink);background:rgba(8,40,46,.55);border:1px solid var(--line);border-radius:99px;padding:9px 18px;cursor:pointer;backdrop-filter:blur(8px);transition:background .2s,border-color .2s}
+button:hover{background:rgba(127,240,216,.18);border-color:var(--accent)}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="A drawing machine of four pendulums traces a glowing figure that slowly decays"></canvas>
+<header><h1>Pendulum Scribe</h1><p>Four pendulums, one pen. Every drawing is a life that fades out.</p></header>
+<footer>
+  <div id="cap" aria-live="polite"></div>
+  <div class="btns"><button id="bNew">New drawing</button><button id="bSym">Symmetry ×1</button></div>
+  <div style="color:var(--mute);font-size:12px;pointer-events:none">Tap the paper to reseed by position · hold to keep the ink alive</div>
+</footer>
+<script>
+(function(){
+'use strict';
+var $=function(s){return document.querySelector(s)};
+var cv=$('#c'),cx=cv.getContext('2d'),tr=document.createElement('canvas'),tx=tr.getContext('2d');
+var reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+var W,H,D,CX,CY,R,N=1,SYM=[1,2,3,4,6],si=0,held=false,P,hx=[],hy=[];
+var RAT=[[1,1],[2,1],[3,2],[3,1],[4,3],[5,4],[5,3],[5,2],[7,4]],TAU=Math.PI*2;
+
+function size(){
+  D=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+  cv.width=tr.width=W*D;cv.height=tr.height=H*D;
+  cv.style.width=W+'px';cv.style.height=H+'px';
+  cx.setTransform(D,0,0,D,0,0);tx.setTransform(D,0,0,D,0,0);
+  CX=W/2;CY=H*.5;R=Math.min(W,H)*.4;
+}
+function rp(){return Math.random()*TAU}
+function fresh(nx,ny){
+  if(nx==null){nx=Math.random();ny=Math.random()}
+  var q=RAT[Math.min(Math.floor(nx*RAT.length),RAT.length-1)],u=.3*TAU;
+  var e1=(.002+ny*.012)*(Math.random()<.5?-1:1),e2=(.002+Math.random()*.012)*(Math.random()<.5?-1:1);
+  P={a:q[0]*u,b:q[1]*u,e1:e1,e2:e2,p:[rp(),rp(),rp(),rp()],d:.013+Math.random()*.006,t:0,env:1,st:'draw',w:0,last:null};
+  P.last=pos();hx=[];hy=[];
+  tx.globalCompositeOperation='source-over';tx.clearRect(0,0,W,H);
+  $('#cap').textContent='Ratio '+q[0]+' : '+q[1]+' · drift '+(Math.abs(e1)*100).toFixed(1)+'% · '+(P.d*1000).toFixed(0)+' friction';
+  if(reduce){while(P.env>=.03)run(400);P.st='done'}
+}
+function pos(){
+  var X=.62*Math.sin(P.a*P.t+P.p[0])+.38*Math.sin(P.a*(1+P.e1)*P.t+P.p[1]);
+  var Y=.62*Math.sin(P.b*P.t+P.p[2])+.38*Math.sin(P.b*(1+P.e2)*P.t+P.p[3]);
+  return{x:CX+R*P.env*X,y:CY+R*P.env*Y};
+}
+function run(n){
+  var pts=[P.last],dt=.004,i,k;
+  for(i=0;i<n&&P.env>=.03;i++){P.t+=dt;P.env*=Math.exp(-(held?P.d*.12:P.d)*dt);pts.push(pos())}
+  if(pts.length<2)return;
+  tx.globalCompositeOperation='lighter';
+  tx.strokeStyle='hsla('+((P.t*2.5+170)%360)+',85%,62%,.2)';tx.lineWidth=.9;tx.lineJoin='round';
+  for(k=0;k<N;k++){
+    var a=k*TAU/N,ca=Math.cos(a),sa=Math.sin(a);
+    tx.beginPath();
+    for(i=0;i<pts.length;i++){
+      var dx=pts[i].x-CX,dy=pts[i].y-CY,x=CX+dx*ca-dy*sa,y=CY+dx*sa+dy*ca;
+      if(i)tx.lineTo(x,y);else tx.moveTo(x,y);
+    }
+    tx.stroke();
+  }
+  P.last=pts[pts.length-1];
+}
+function dot(x,y,r,c){cx.fillStyle=c;cx.beginPath();cx.arc(x,y,r,0,TAU);cx.fill()}
+function overlay(){
+  var p=P.last,by=H-30,rx=W-24,i,al=P.st==='draw'?1:Math.max(0,1-P.w/1.2);
+  if(al<=0)return;
+  cx.globalAlpha=al;
+  hx.push(p.x);hy.push(p.y);if(hx.length>140){hx.shift();hy.shift()}
+  cx.strokeStyle='rgba(160,235,225,.16)';cx.lineWidth=1;cx.setLineDash([3,5]);
+  cx.beginPath();cx.moveTo(p.x,p.y);cx.lineTo(p.x,by);cx.moveTo(p.x,p.y);cx.lineTo(rx,p.y);cx.stroke();cx.setLineDash([]);
+  cx.beginPath();cx.moveTo(CX-R,by);cx.lineTo(CX+R,by);cx.moveTo(rx,CY-R);cx.lineTo(rx,CY+R);cx.stroke();
+  for(i=0;i<hx.length;i++){var f=i/hx.length;dot(hx[i],by,1.4,'rgba(127,240,216,'+(f*.5)+')');dot(rx,hy[i],1.4,'rgba(127,240,216,'+(f*.5)+')')}
+  dot(p.x,by,3.5,'#7ff0d8');dot(rx,p.y,3.5,'#7ff0d8');
+  var g=cx.createRadialGradient(p.x,p.y,0,p.x,p.y,16);g.addColorStop(0,'rgba(255,255,255,.95)');g.addColorStop(.3,'rgba(127,240,216,.5)');g.addColorStop(1,'rgba(127,240,216,0)');
+  cx.fillStyle=g;cx.beginPath();cx.arc(p.x,p.y,16,0,TAU);cx.fill();
+  for(i=1;i<N;i++){var a=i*TAU/N,dx=p.x-CX,dy=p.y-CY;dot(CX+dx*Math.cos(a)-dy*Math.sin(a),CY+dx*Math.sin(a)+dy*Math.cos(a),3,'rgba(255,255,255,.6)')}
+  cx.globalAlpha=1;
+}
+function frame(){
+  if(!reduce){
+    if(P.st==='draw'){run(24);if(P.env<.03){P.st='rest';P.w=0}}
+    else if(P.st==='rest'){P.w+=1/60;if(P.w>3){P.st='fade';P.w=0}}
+    else if(P.st==='fade'){P.w+=1/60;tx.globalCompositeOperation='destination-out';tx.fillStyle='rgba(0,0,0,.05)';tx.fillRect(0,0,W,H);if(P.w>2.6)fresh()}
+  }
+  cx.clearRect(0,0,W,H);cx.drawImage(tr,0,0,W,H);
+  if(!reduce||P.st!=='done')overlay();
+  requestAnimationFrame(frame);
+}
+var down=0;
+cv.addEventListener('pointerdown',function(e){held=true;down=performance.now();try{cv.setPointerCapture(e.pointerId)}catch(_){}});
+function up(e){
+  held=false;
+  if(e.type==='pointerup'&&performance.now()-down<260)fresh(e.clientX/W,e.clientY/H);
+}
+cv.addEventListener('pointerup',up);cv.addEventListener('pointercancel',up);
+function sym(){si=(si+1)%SYM.length;N=SYM[si];$('#bSym').textContent='Symmetry ×'+N;fresh()}
+$('#bNew').onclick=function(){fresh()};$('#bSym').onclick=sym;
+addEventListener('keydown',function(e){
+  if(e.target.tagName==='BUTTON')return;
+  if(e.code==='Space'||e.key==='Enter'){e.preventDefault();fresh()}
+  else if(e.key==='s'||e.key==='S')sym();
+});
+var rt;addEventListener('resize',function(){clearTimeout(rt);rt=setTimeout(function(){size();fresh()},200)});
+size();fresh(.28,.45);frame();
+})();
+</script>
+</body>
+</html>
