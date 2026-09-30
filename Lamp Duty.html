@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lamp Duty</title>
+<link href="https://fonts.googleapis.com/css2?family=Bagel+Fat+One&family=Patrick+Hand&display=swap" rel="stylesheet">
+<style>
+:root{--cream:#fffbe8;--glow:#ffd678;--night:#0a0d2e;--mute:#b9b3d9;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0}
+body{background:var(--night);color:var(--cream);font:18px/1.3 'Patrick Hand','Comic Sans MS',cursive;overflow:hidden}
+canvas{position:fixed;inset:0;touch-action:none;cursor:none}
+header{position:fixed;left:0;top:0;padding:calc(16px + env(safe-area-inset-top,0px)) 20px 0;pointer-events:none;max-width:62vw}
+h1{font:400 clamp(2rem,6vw,3.4rem)/1 'Bagel Fat One','Arial Rounded MT Bold','Trebuchet MS',sans-serif;margin:0 0 4px;color:var(--glow);text-shadow:0 3px 0 #7a3d10,0 0 24px rgba(255,190,80,.45)}
+header p{margin:0;color:var(--mute)}
+.ctl{position:fixed;right:16px;top:calc(16px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+.dig{display:flex;align-items:center;gap:8px;pointer-events:none;font-size:16px;color:var(--mute)}
+.dig b{font:400 1.1rem 'Bagel Fat One',sans-serif;color:var(--cream);min-width:3ch;text-align:right}
+.bar{width:84px;height:10px;border-radius:9px;background:rgba(255,255,255,.14);overflow:hidden}
+.bar i{display:block;height:100%;width:100%;background:linear-gradient(90deg,#ff7a59,var(--glow));transition:width .4s}
+button{font:inherit;color:#3a1c08;background:linear-gradient(#ffe7a0,#ffbf4d);border:0;border-radius:99px;padding:8px 20px;cursor:pointer;box-shadow:0 4px 0 #a5620f,0 8px 18px rgba(0,0,0,.35);transition:transform .1s,box-shadow .1s}
+button:active{transform:translateY(3px);box-shadow:0 1px 0 #a5620f}
+button[aria-pressed=true]{background:linear-gradient(#8f89b5,#5f5990);color:#fff;box-shadow:0 4px 0 #2f2a55}
+button:focus-visible{outline:3px solid #fff;outline-offset:3px}
+#hint{position:fixed;left:0;right:0;bottom:0;padding:0 14px calc(8px + env(safe-area-inset-bottom,0px));text-align:center;font-size:15px;color:var(--mute);pointer-events:none}
+#note{color:var(--glow)}
+</style>
+</head>
+<body>
+<canvas id="c" aria-label="A night window scene: the pointer is a hanging lamp and five moths with strong opinions circle it"></canvas>
+<header><h1>Lamp Duty</h1><p>You are the lamp. The moths are not coping.</p></header>
+<div class="ctl">
+  <div class="dig">Moth dignity <span class="bar"><i id="db"></i></span><b id="dv">100%</b></div>
+  <button id="bL" aria-pressed="false">Lights off</button>
+</div>
+<div id="hint"><span id="note"></span><br>Move to be the lamp · click a moth to tickle it · click the sky for a flash · Space flips the lights</div>
+<script>
+(function(){
+'use strict';
+var cv=document.getElementById('c'),cx=cv.getContext('2d'),TAU=Math.PI*2;
+var reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+var rnd=function(a,b){return a+Math.random()*(b-a)},pick=function(a){return a[Math.floor(Math.random()*a.length)]},clamp=function(v,a,b){return Math.max(a,Math.min(b,v))};
+var W,H,D,SH,FL,on=true,lamp={x:0,y:0},lastMove=-1e9,flashT=0,dig=100,stars=[],T=0,moon={x:0,y:0,r:0},last=0;
+var TICK=["hehe stop it","that's my ticklish\nspot","unhand me!\nI'm a professional","eeee!"];
+var FLASH=["MY EYES!","Warn a moth!","rude.","I saw the light.\nLiterally."];
+var DARK=["WHO TURNED OFF\nTHE SUN?!","Hello?? Is this\nthe void?","I can't see my\nown antennae","Gary? GARY?!"];
+var ONL=["There you are!","I KNEW you'd\ncome back!","Never leave me\nlike that again."];
+var TYPES=[
+{k:'gary',n:'Gary',h:38,sz:1,r0:42,mv:230,kt:200,lines:["I'm not obsessed.\nI'm just orbiting.","We're basically\nmarried.","Don't move. Okay,\nmove. Slowly.","Best. Day. Ever."]},
+{k:'diva',n:'Diva',h:320,sz:1.25,r0:120,mv:260,kt:240,lines:["Darling, I am the\nmain character.","Look at my wings.\nLook.","Too fabulous for\nthis lamp.","*dramatic swoop*"]},
+{k:'prof',n:'Prof. Dusty',h:205,sz:1.1,r0:90,mv:190,kt:150,lines:["The moon is far.\nThe lamp is right\nhere.","Both are lights.\nAm I a hypocrite?","Is the flame the\nmoth, or the moth\nthe flame?"]},
+{k:'snooze',n:'Snooze',h:95,sz:1.15,r0:100,mv:170,kt:130,lines:["Five more minutes.","Is it morning?","zzz... lamp... zzz","I'm awake. Very\nawake."]},
+{k:'zoom',n:'Zoom',h:160,sz:.8,r0:60,mv:420,kt:380,lines:["WHEEEEEE","I have no idea\nwhat I'm doing!!","AGAIN! AGAIN!","Left! Left! LEFT!"]}
+];
+var moths=[];
+function size(){
+  D=Math.min(window.devicePixelRatio||1,2);W=innerWidth;H=innerHeight;
+  cv.width=W*D;cv.height=H*D;cv.style.width=W+'px';cv.style.height=H+'px';cx.setTransform(D,0,0,D,0,0);
+  SH=W<600?62:46;FL=H-SH-4;moon={x:W*.8,y:H*.2+40,r:Math.min(W,H)*.07};
+  if(!lamp.x){lamp.x=W/2;lamp.y=H/2}
+}
+function say(m,t,d){m.said=t;m.sayT=d||2.8}
+function hurt(n){
+  dig=Math.max(0,dig-n);
+  document.getElementById('dv').textContent=dig+'%';document.getElementById('db').style.width=dig+'%';
+  if(dig===0)document.getElementById('note').textContent='Dignity fully spent. The moths have made peace with it.';
+}
+function tickle(m){m.spin=.8;if(m.st==='nap')m.st='fly';say(m,pick(TICK),2.6);hurt(1)}
+function flash(){
+  flashT=.35;
+  moths.forEach(function(m){
+    var dx=m.x-lamp.x,dy=m.y-lamp.y,d=Math.hypot(dx,dy)||1;
+    if(d<260){m.vx+=dx/d*520;m.vy+=dy/d*520;say(m,pick(FLASH),2.2);hurt(1);if(m.st==='nap')m.st='fly'}
+  });
+}
+function setLights(v){
+  on=v;var b=document.getElementById('bL');b.setAttribute('aria-pressed',String(!v));b.textContent=v?'Lights off':'Lights on';
+  if(!v)hurt(3);
+  moths.forEach(function(m,i){setTimeout(function(){say(m,v?pick(ONL):(m.k==='prof'?"Ah. The moon.\nReliable.":pick(DARK)),3)},i*250)});
+}
+function step(m,dt){
+  var lit=on,dl=Math.hypot(lamp.x-m.x,lamp.y-m.y),tx=lamp.x,ty=lamp.y,r0=m.r0,mv=m.mv,kt=m.kt;
+  m.sayT-=dt;m.nextSay-=dt;m.spin-=dt;m.stT-=dt;m.faintIn-=dt;
+  m.rot=m.spin>0?(1-m.spin/.8)*TAU:0;
+  if(m.st==='faint'){
+    m.vy+=900*dt;m.vx*=.985;m.x+=m.vx*dt;m.y=Math.min(m.y+m.vy*dt,FL);m.rot=Math.sin(T*20)*.4+1.3;
+    if(m.stT<=0){m.st='fly';m.vy=-220;say(m,pick(["I'm FINE. I saw my\nwhole life.","Tell my mother I\ndied dramatically."]),3)}
+    return;
+  }
+  if(m.st==='nap'){
+    m.x+=(m.hf*W-m.x)*dt*2;m.y+=(FL-m.y)*dt*2;m.vx=m.vy=0;
+    if(lit&&dl<210){m.st='fly';m.vy=-140;say(m,pick(["Five more minutes.","Is it morning?"]),2.4)}
+    return;
+  }
+  if(m.k==='snooze'){
+    if(!lit&&m.st==='fly'){m.st='nap';say(m,"Finally. Bedtime.",3);return}
+    m.far=dl>340?m.far+dt:0;
+    if(lit&&m.far>2.5){m.st='nap';m.far=0;say(m,"Okay. Bedtime.",2.2);return}
+  }
+  if(!lit){
+    m.wt-=dt;if(m.wt<=0){m.wt=rnd(1,2.2);m.wx=rnd(.08,.92)*W;m.wy=rnd(.1,.8)*H}
+    tx=m.wx;ty=m.wy;r0=0;kt=40;mv=150;
+    if(m.k==='prof'){tx=moon.x;ty=moon.y;r0=moon.r*1.7;kt=120}
+  }else{
+    if(m.k==='prof'&&dl>240){tx=moon.x;ty=moon.y;r0=moon.r*1.7;kt=110}
+    if(m.k==='diva')r0=110+80*Math.sin(T*.5+m.o);
+  }
+  var ex=tx-m.x,ey=ty-m.y,d=Math.hypot(ex,ey)||1,nx=ex/d,ny=ey/d,rf=(d-r0)*7,tf=lit?1:.2,nz=lit?120:420;
+  var ax=nx*rf-ny*kt*m.dir*tf+rnd(-1,1)*nz,ay=ny*rf+nx*kt*m.dir*tf+rnd(-1,1)*nz;
+  m.vx+=ax*dt;m.vy+=ay*dt;var dm=Math.exp(-1.1*dt);m.vx*=dm;m.vy*=dm;
+  var sp=Math.hypot(m.vx,m.vy);if(sp>mv){m.vx*=mv/sp;m.vy*=mv/sp}
+  m.x+=m.vx*dt;m.y+=m.vy*dt;
+  var hit=false;
+  if(m.x<20){m.x=20;m.vx=Math.abs(m.vx)*.6;hit=true}
+  if(m.x>W-20){m.x=W-20;m.vx=-Math.abs(m.vx)*.6;hit=true}
+  if(m.y<20){m.y=20;m.vy=Math.abs(m.vy)*.6;hit=true}
+  if(m.y>FL){m.y=FL;m.vy=-Math.abs(m.vy)*.6;hit=true}
+  if(hit&&!lit&&m.sayT<=0&&Math.random()<.5)say(m,pick(["OW. A wall.","Who put a wall\nthere?!","Bonk."]),1.6);
+  if(m.k==='diva'&&lit&&m.faintIn<=0){m.st='faint';m.stT=1.5;m.faintIn=rnd(14,22);hurt(2)}
+  if(m.nextSay<=0){m.nextSay=rnd(5,9);if(m.sayT<=0)say(m,pick(lit?m.lines:DARK),3)}
+}
+function rr(x,y,w,h,r){cx.beginPath();if(cx.roundRect)cx.roundRect(x,y,w,h,r);else cx.rect(x,y,w,h)}
+function drawBg(){
+  var g=cx.createLinearGradient(0,0,0,H);g.addColorStop(0,'#0a0d2e');g.addColorStop(.7,'#1b1245');g.addColorStop(1,'#2a1a4f');
+  cx.fillStyle=g;cx.fillRect(0,0,W,H);
+  stars.forEach(function(s){cx.fillStyle='rgba(255,250,225,'+(.35+.4*Math.sin(T*(reduce?0:1.5)*s.s+s.p))+')';cx.fillRect(s.x*W,s.y*H,s.s,s.s)});
+  var mg=cx.createRadialGradient(moon.x,moon.y,moon.r*.6,moon.x,moon.y,moon.r*3);mg.addColorStop(0,'rgba(255,245,200,.35)');mg.addColorStop(1,'rgba(255,245,200,0)');
+  cx.fillStyle=mg;cx.fillRect(moon.x-moon.r*3,moon.y-moon.r*3,moon.r*6,moon.r*6);
+  cx.fillStyle='#f6f0d6';cx.beginPath();cx.arc(moon.x,moon.y,moon.r,0,TAU);cx.fill();
+  cx.fillStyle='rgba(170,160,125,.35)';
+  [[-.3,-.2,.22],[.25,.15,.3],[-.1,.4,.14]].forEach(function(c){cx.beginPath();cx.arc(moon.x+c[0]*moon.r,moon.y+c[1]*moon.r,c[2]*moon.r,0,TAU);cx.fill()});
+  cx.fillStyle='#120a24';cx.fillRect(0,H-SH,W,SH);cx.fillStyle='rgba(255,255,255,.1)';cx.fillRect(0,H-SH,W,2);
+  if(!on){cx.fillStyle='rgba(2,3,14,.5)';cx.fillRect(0,0,W,H)}
+}
+function drawMoth(m){
+  var near=on?Math.max(0,1-Math.hypot(lamp.x-m.x,lamp.y-m.y)/320):0,l=44+34*near,nap=m.st==='nap';
+  var f=nap?.28:.45+.55*Math.abs(Math.sin(m.ph)),wc='hsl('+m.h+',48%,'+l+'%)',wc2='hsl('+m.h+',55%,'+(l-14)+'%)';
+  cx.save();cx.translate(m.x,m.y);cx.rotate(clamp(m.vx*.0025,-.45,.45)+m.rot);cx.scale(m.sz,m.sz);
+  if(!on)cx.globalAlpha=.8;
+  [-1,1].forEach(function(s){
+    cx.save();cx.scale(s,1);
+    cx.fillStyle=wc;cx.beginPath();cx.ellipse(13*f+3,-4,15*f+2,11,-.35,0,TAU);cx.fill();
+    cx.fillStyle=wc2;cx.beginPath();cx.ellipse(10*f+2,7,9*f+1,7,.4,0,TAU);cx.fill();
+    cx.fillStyle='rgba(20,10,40,.35)';cx.beginPath();cx.arc(14*f+3,-4,3.2*f+.5,0,TAU);cx.fill();
+    cx.restore();
+  });
+  var bc='hsl('+m.h+',30%,'+(l-22)+'%)';
+  cx.fillStyle=bc;cx.beginPath();cx.ellipse(0,1,4.5,11,0,0,TAU);cx.fill();
+  cx.beginPath();cx.arc(0,-11,4.2,0,TAU);cx.fill();
+  cx.strokeStyle=bc;cx.lineWidth=1.3;cx.beginPath();
+  cx.moveTo(-2,-14);cx.quadraticCurveTo(-8,-24,-13,-21);cx.moveTo(2,-14);cx.quadraticCurveTo(8,-24,13,-21);cx.stroke();
+  if(nap){cx.strokeStyle='#fff';cx.lineWidth=1;cx.beginPath();cx.moveTo(-3.6,-11);cx.lineTo(-.6,-11);cx.moveTo(.6,-11);cx.lineTo(3.6,-11);cx.stroke()}
+  else{
+    var a=Math.atan2(lamp.y-m.y,lamp.x-m.x),ox=Math.cos(a)*.9,oy=Math.sin(a)*.9;
+    cx.fillStyle='#fff';cx.beginPath();cx.arc(-2,-11.5,2,0,TAU);cx.arc(2,-11.5,2,0,TAU);cx.fill();
+    cx.fillStyle='#111';cx.beginPath();cx.arc(-2+ox,-11.5+oy,1,0,TAU);cx.arc(2+ox,-11.5+oy,1,0,TAU);cx.fill();
+  }
+  cx.restore();
+  cx.textAlign='center';cx.font='13px "Patrick Hand",cursive';cx.fillStyle='rgba(255,255,255,.4)';cx.fillText(m.n,m.x,m.y+26*m.sz+6);
+  if(nap){cx.textAlign='left';cx.fillStyle='rgba(255,255,255,.7)';cx.font='italic 16px "Patrick Hand",cursive';
+    var z=(T*14)%18;cx.fillText('z',m.x+14,m.y-12-z);cx.fillText('Z',m.x+22,m.y-22-z)}
+}
+function drawBubble(m){
+  if(m.sayT<=0)return;
+  var ls=m.said.split('\n');cx.font='17px "Patrick Hand",cursive';cx.textAlign='left';
+  var w=Math.max.apply(null,ls.map(function(s){return cx.measureText(s).width}))+24,h=ls.length*20+14;
+  var x=clamp(m.x-w/2,8,W-w-8),y=m.y-38*m.sz-h-10,above=true;
+  if(y<8){y=m.y+34*m.sz+14;above=false}
+  cx.globalAlpha=Math.min(1,m.sayT*3);cx.fillStyle='#fffbe8';rr(x,y,w,h,12);cx.fill();
+  var tx=clamp(m.x,x+12,x+w-12);cx.beginPath();
+  if(above){cx.moveTo(tx-6,y+h-1);cx.lineTo(tx,y+h+8);cx.lineTo(tx+6,y+h-1)}else{cx.moveTo(tx-6,y+1);cx.lineTo(tx,y-8);cx.lineTo(tx+6,y+1)}
+  cx.fill();cx.fillStyle='#2a1a4f';
+  ls.forEach(function(s,i){cx.fillText(s,x+12,y+22+i*20)});
+  cx.globalAlpha=1;
+}
+function drawLamp(){
+  var x=lamp.x,y=lamp.y,fl=flashT>0?flashT/.35:0;
+  cx.strokeStyle='rgba(200,190,220,.45)';cx.lineWidth=2;cx.beginPath();cx.moveTo(x,-10);cx.quadraticCurveTo(x+Math.sin(T*1.3)*8,y*.5,x,y-18);cx.stroke();
+  if(on){
+    cx.globalCompositeOperation='lighter';
+    var r=230+fl*300,g=cx.createRadialGradient(x,y,0,x,y,r);
+    g.addColorStop(0,'rgba(255,214,120,'+(.55+fl*.4)+')');g.addColorStop(.35,'rgba(255,170,70,.18)');g.addColorStop(1,'rgba(255,140,50,0)');
+    cx.fillStyle=g;cx.fillRect(x-r,y-r,r*2,r*2);cx.globalCompositeOperation='source-over';
+  }
+  cx.fillStyle='#8a83a3';cx.fillRect(x-5,y-19,10,9);
+  cx.fillStyle=on?'#fff6c8':'#4a4560';cx.beginPath();cx.arc(x,y,10,0,TAU);cx.fill();
+}
+function frame(t){
+  var dt=Math.min((t-last)/1000||0,.05)*(reduce?.5:1);last=t;T+=dt;
+  if(performance.now()-lastMove>4000){lamp.x=W/2+Math.cos(T*.5)*W*.3;lamp.y=H*.42+Math.sin(T*.8)*H*.2}
+  flashT=Math.max(0,flashT-dt);
+  moths.forEach(function(m){step(m,dt);m.ph+=dt*(m.st==='nap'?0:m.st==='faint'?2:26+Math.hypot(m.vx,m.vy)*.02)});
+  drawBg();
+  moths.forEach(drawMoth);
+  drawLamp();
+  if(flashT>0){cx.fillStyle='rgba(255,255,240,'+(flashT/.35*.35)+')';cx.fillRect(0,0,W,H)}
+  moths.forEach(drawBubble);
+  requestAnimationFrame(frame);
+}
+size();
+for(var i=0;i<80;i++)stars.push({x:Math.random(),y:Math.random()*.8,p:Math.random()*TAU,s:Math.random()*1.4+.6});
+moths=TYPES.map(function(t,i){
+  return Object.assign({},t,{x:rnd(.2,.8)*W,y:rnd(.2,.6)*H,vx:0,vy:0,ph:rnd(0,TAU),dir:i%2?1:-1,sayT:0,said:'',nextSay:rnd(2,5),st:t.k==='snooze'?'nap':'fly',stT:0,spin:0,rot:0,o:rnd(0,TAU),wx:0,wy:0,wt:0,far:0,faintIn:rnd(10,18),hf:.3});
+});
+moths[3].y=FL;moths[3].x=W*.3;
+cv.addEventListener('pointermove',function(e){lamp.x=e.clientX;lamp.y=e.clientY;lastMove=performance.now()});
+cv.addEventListener('pointerdown',function(e){
+  lamp.x=e.clientX;lamp.y=e.clientY;lastMove=performance.now();
+  var hit=null;moths.forEach(function(m){if(Math.hypot(m.x-e.clientX,m.y-e.clientY)<32*m.sz)hit=m});
+  if(hit)tickle(hit);else flash();
+});
+document.getElementById('bL').onclick=function(){setLights(!on)};
+addEventListener('keydown',function(e){
+  if(e.target.tagName==='BUTTON')return;
+  if(e.code==='Space'||e.key==='l'||e.key==='L'){e.preventDefault();setLights(!on)}
+});
+addEventListener('resize',size);
+setTimeout(function(){say(moths[0],"Oh! A lamp! Hello!",3)},700);
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
