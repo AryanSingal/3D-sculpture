@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cyberpunk HUD Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --neon-cyan: #00f3ff;
+            --neon-pink: #ff00ea;
+            --neon-yellow: #fcee0a;
+            --dark-bg: #090a0f;
+            --grid-color: rgba(0, 243, 255, 0.15);
+        }
+
+        body {
+            font-family: 'Orbitron', sans-serif;
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: var(--dark-bg);
+            /* Cyberpunk Perspective Grid */
+            background-image: 
+                linear-gradient(transparent 65%, var(--grid-color) 66%, transparent 67%),
+                linear-gradient(90deg, transparent 65%, var(--grid-color) 66%, transparent 67%);
+            background-size: 40px 40px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* Scanline Overlay for the entire body */
+        body::after {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            z-index: 50;
+        }
+
+        /* The Main Calculator Body */
+        .cyber-calculator {
+            background: rgba(10, 10, 15, 0.85);
+            border: 2px solid var(--neon-cyan);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2), inset 0 0 20px rgba(0, 243, 255, 0.1);
+            position: relative;
+            z-index: 10;
+            /* Angled corners */
+            clip-path: polygon(20px 0, 100% 0, 100% calc(100% - 20px), calc(100% - 20px) 100%, 0 100%, 0 20px);
+            animation: bootUp 1s ease-out forwards;
+        }
+
+        @keyframes bootUp {
+            0% { transform: scale(0.9); opacity: 0; filter: brightness(2); }
+            50% { opacity: 1; filter: brightness(1.5); }
+            100% { transform: scale(1); filter: brightness(1); }
+        }
+
+        /* CRT Screen Display */
+        .crt-screen {
+            font-family: 'Share Tech Mono', monospace;
+            background: #020608;
+            color: var(--neon-cyan);
+            text-shadow: 0 0 8px var(--neon-cyan);
+            border: 1px solid rgba(0, 243, 255, 0.3);
+            position: relative;
+            box-shadow: inset 0 0 15px rgba(0, 243, 255, 0.1);
+        }
+
+        .crt-screen::before {
+            content: "SYSTEM OP_READY";
+            position: absolute;
+            top: 4px; left: 8px;
+            font-size: 0.5rem;
+            color: var(--neon-pink);
+            text-shadow: 0 0 5px var(--neon-pink);
+            letter-spacing: 2px;
+            opacity: 0.7;
+        }
+
+        /* Cut-corner Buttons */
+        .cyber-btn {
+            background: rgba(0, 243, 255, 0.05);
+            border: 1px solid rgba(0, 243, 255, 0.4);
+            color: var(--neon-cyan);
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+            transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            text-transform: uppercase;
+            font-weight: 700;
+        }
+
+        .cyber-btn:hover {
+            background: var(--neon-cyan);
+            color: #000;
+            box-shadow: 0 0 15px var(--neon-cyan);
+            border-color: var(--neon-cyan);
+            transform: scale(1.02);
+            text-shadow: none;
+        }
+
+        .cyber-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* Operator buttons styling (Pink) */
+        .cyber-btn.operator {
+            border-color: rgba(255, 0, 234, 0.4);
+            color: var(--neon-pink);
+            background: rgba(255, 0, 234, 0.05);
+        }
+        .cyber-btn.operator:hover {
+            background: var(--neon-pink);
+            color: #000;
+            box-shadow: 0 0 15px var(--neon-pink);
+            border-color: var(--neon-pink);
+        }
+
+        /* Equals button styling (Yellow/Gold) */
+        .cyber-btn.equals {
+            border-color: var(--neon-yellow);
+            color: var(--neon-yellow);
+            background: rgba(252, 238, 10, 0.1);
+        }
+        .cyber-btn.equals:hover {
+            background: var(--neon-yellow);
+            color: #000;
+            box-shadow: 0 0 20px var(--neon-yellow);
+            border-color: var(--neon-yellow);
+        }
+
+        /* Screen Glitch Effect on Calculate */
+        .glitch-anim {
+            animation: glitch 0.2s linear;
+        }
+
+        @keyframes glitch {
+            0% { transform: translate(0) }
+            20% { transform: translate(-2px, 2px) }
+            40% { transform: translate(-2px, -2px) }
+            60% { transform: translate(2px, 2px) }
+            80% { transform: translate(2px, -2px) }
+            100% { transform: translate(0) }
+        }
+
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Main Calculator Container -->
+    <div class="cyber-calculator p-6 w-full max-w-[380px] mx-4 sm:mx-auto">
+        
+        <!-- CRT Display Area -->
+        <div id="screen-container" class="crt-screen mb-6 p-4 flex flex-col items-end justify-end h-36 overflow-hidden text-right pt-8">
+            <div id="previous-operand" class="text-gray-400 text-sm h-6 font-light tracking-widest w-full overflow-hidden whitespace-nowrap text-ellipsis opacity-80"></div>
+            <div id="current-operand" class="text-4xl font-bold tracking-wider w-full overflow-hidden whitespace-nowrap text-ellipsis mt-2">0</div>
+        </div>
+
+        <!-- Buttons Grid -->
+        <div class="grid grid-cols-4 gap-3">
+            <!-- Row 1 -->
+            <button class="cyber-btn operator col-span-2 text-lg py-4" onclick="calculator.clear()">CLR</button>
+            <button class="cyber-btn operator text-lg py-4" onclick="calculator.delete()">DEL</button>
+            <button class="cyber-btn operator text-2xl py-4" onclick="calculator.chooseOperation('÷')">/</button>
+            
+            <!-- Row 2 -->
+            <button class="cyber-btn text-2xl py-4" onclick="calculator.appendNumber('7')">7</button>
+            <button class="cyber-btn text-2xl py-4" onclick="calculator.appendNumber('8')">8</button>
+            <button class="cyber-btn text-2xl py-4" onclick="calculator.appendNumber('9')">9</button>
+            <button class="cyber-btn operator text-2xl py-4" onclick="calculator.chooseOperation('×')">*</button>
+            
+            <!-- Row 3 -->
+            <button class="cyber-btn text-2xl py-4" onclick="calculator.appendNumber('4')">4</button>
+            <button class="cyber-btn text-2xl py-4" onclick="calculator.appendNumber('5')">5</button>
+            <button class="cyber-btn text-2xl py-4" onclick="calculator.appendNumber('6')">6</button>
+            <button class="cyber-btn operator text-3xl py-4 leading-none" onclick="calculator.chooseOperation('-')">-</button>
+            
+            <!-- Row 4 -->
+            <button class="cyber-btn text-2xl py-4" onclick="calculator.appendNumber('1')">1</button>
+            <button class="cyber-btn text-2xl py-4" onclick="calculator.appendNumber('2')">2</button>
+            <button class="cyber-btn text-2xl py-4" onclick="calculator.appendNumber('3')">3</button>
+            <button class="cyber-btn operator text-2xl py-4" onclick="calculator.chooseOperation('+')">+</button>
+            
+            <!-- Row 5 -->
+            <button class="cyber-btn text-2xl py-4 col-span-2" onclick="calculator.appendNumber('0')">0</button>
+            <button class="cyber-btn text-2xl font-bold py-4" onclick="calculator.appendNumber('.')">.</button>
+            <button class="cyber-btn equals text-2xl py-4" onclick="calculator.compute()">=</button>
+        </div>
+    </div>
+
+    <script>
+        class Calculator {
+            constructor(previousOperandTextElement, currentOperandTextElement, screenContainer) {
+                this.previousOperandTextElement = previousOperandTextElement;
+                this.currentOperandTextElement = currentOperandTextElement;
+                this.screenContainer = screenContainer;
+                this.clear();
+            }
+
+            clear() {
+                this.currentOperand = '0';
+                this.previousOperand = '';
+                this.operation = undefined;
+                this.updateDisplay();
+            }
+
+            delete() {
+                if (this.currentOperand === '0') return;
+                if (this.currentOperand.length === 1 || (this.currentOperand.length === 2 && this.currentOperand.startsWith('-'))) {
+                    this.currentOperand = '0';
+                } else {
+                    this.currentOperand = this.currentOperand.toString().slice(0, -1);
+                }
+                this.updateDisplay();
+            }
+
+            appendNumber(number) {
+                if (number === '.' && this.currentOperand.includes('.')) return;
+                
+                if (this.currentOperand === '0' && number !== '.') {
+                    this.currentOperand = number.toString();
+                } else {
+                    // Prevent extremely long numbers
+                    if(this.currentOperand.length < 14) {
+                        this.currentOperand = this.currentOperand.toString() + number.toString();
+                    }
+                }
+                this.updateDisplay();
+            }
+
+            chooseOperation(operation) {
+                if (this.currentOperand === '0' && this.previousOperand === '') return;
+                if (this.previousOperand !== '') {
+                    this.compute(false); // compute silently without glitch effect
+                }
+                this.operation = operation;
+                this.previousOperand = this.currentOperand;
+                this.currentOperand = '0';
+                this.updateDisplay();
+            }
+
+            triggerGlitch() {
+                this.screenContainer.classList.remove('glitch-anim');
+                void this.screenContainer.offsetWidth; // trigger reflow
+                this.screenContainer.classList.add('glitch-anim');
+            }
+
+            compute(triggerVisuals = true) {
+                let computation;
+                const prev = parseFloat(this.previousOperand);
+                const current = parseFloat(this.currentOperand);
+                if (isNaN(prev) || isNaN(current)) return;
+                
+                switch (this.operation) {
+                    case '+':
+                        computation = prev + current;
+                        break;
+                    case '-':
+                        computation = prev - current;
+                        break;
+                    case '×':
+                        computation = prev * current;
+                        break;
+                    case '÷':
+                        if(current === 0) {
+                            computation = "ERR_DIV_0";
+                        } else {
+                            computation = prev / current;
+                        }
+                        break;
+                    default:
+                        return;
+                }
+                
+                // Floating point fix
+                if (typeof computation === 'number') {
+                     computation = Math.round(computation * 1000000000) / 1000000000;
+                }
+               
+                this.currentOperand = computation.toString();
+                this.operation = undefined;
+                this.previousOperand = '';
+                this.updateDisplay();
+                
+                if(triggerVisuals) {
+                    this.triggerGlitch();
+                }
+            }
+
+            getDisplayNumber(number) {
+                if (number === 'ERR_DIV_0') return number;
+                
+                const stringNumber = number.toString();
+                const integerDigits = parseFloat(stringNumber.split('.')[0]);
+                const decimalDigits = stringNumber.split('.')[1];
+                let integerDisplay;
+                
+                if (isNaN(integerDigits)) {
+                    integerDisplay = '0';
+                } else {
+                    integerDisplay = integerDigits.toLocaleString('en', { maximumFractionDigits: 0 });
+                }
+                
+                if (decimalDigits != null) {
+                    return `${integerDisplay}.${decimalDigits}`;
+                } else {
+                    return integerDisplay;
+                }
+            }
+
+            updateDisplay() {
+                this.currentOperandTextElement.innerText = this.getDisplayNumber(this.currentOperand);
+                if (this.operation != null) {
+                    this.previousOperandTextElement.innerText = 
+                        `${this.getDisplayNumber(this.previousOperand)} ${this.operation}`;
+                } else {
+                    this.previousOperandTextElement.innerText = '';
+                }
+                
+                // Adjust font size for long numbers in Sci-Fi font
+                if(this.currentOperand.length > 9) {
+                    this.currentOperandTextElement.style.fontSize = '1.75rem'; 
+                } else {
+                    this.currentOperandTextElement.style.fontSize = '2.25rem'; 
+                }
+            }
+        }
+
+        const previousOperandTextElement = document.getElementById('previous-operand');
+        const currentOperandTextElement = document.getElementById('current-operand');
+        const screenContainer = document.getElementById('screen-container');
+        
+        const calculator = new Calculator(previousOperandTextElement, currentOperandTextElement, screenContainer);
+
+        // Keyboard Support mapped to Cyberpunk UI
+        document.addEventListener('keydown', e => {
+            if (/[0-9.]/.test(e.key)) {
+                e.preventDefault();
+                calculator.appendNumber(e.key);
+            }
+            if (e.key === '+' || e.key === '-') {
+                e.preventDefault();
+                calculator.chooseOperation(e.key);
+            }
+            if (e.key === '*' || e.key === 'x') {
+                e.preventDefault();
+                calculator.chooseOperation('×');
+            }
+            if (e.key === '/') {
+                e.preventDefault();
+                calculator.chooseOperation('÷');
+            }
+            if (e.key === 'Enter' || e.key === '=') {
+                e.preventDefault();
+                calculator.compute();
+            }
+            if (e.key === 'Backspace') {
+                e.preventDefault();
+                calculator.delete();
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                calculator.clear();
+            }
+        });
+    </script>
+</body>
+</html>
